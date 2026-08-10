@@ -10,19 +10,6 @@ void cmd_help(void);
 void cmd_greet(char *name);
 void cmd_add(char *num1_str, char *num2_str);
 
-// The reusable CLI function declaration
-void cli(void);
-
-int main(void) {
-    printf("Starting the main application...\n");
-    
-    // Call the CLI function easily from main
-    cli();
-
-    printf("Main application finished executing.\n");
-    return 0;
-}
-
 // Reusable CLI engine function
 void cli(void) {
     char input[MAX_INPUT_SIZE];

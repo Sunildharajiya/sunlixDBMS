@@ -26,11 +26,18 @@ else
     CFLAGS = -Wall -O2
 endif
 
+# Header/include directories
+CFLAGS += -I src -I src/functions
+
+
 # ==========================================
 # Rest of your standard Makefile continues here
 # ==========================================
 TARGET =  sunlixDBMS
-SOURCES = src/main.c 
+SOURCES = src/main.c	\
+	src/functions/command-line.c	\
+	
+
 OBJECTS = $(SOURCES:.c=.o)
 
 .PHONY: all clean info
