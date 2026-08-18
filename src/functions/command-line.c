@@ -2,91 +2,131 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_INPUT_SIZE 1024
+#include "./crud/writer.h"
+
+#define MAX_INPUT_SIZE 4096
 #define MAX_ARG_SIZE 64
 
-// Function declarations for built-in commands
+/* Built-in command declarations */
 void cmd_help(void);
-void cmd_greet(char *name);
-void cmd_add(char *num1_str, char *num2_str);
 
-// Reusable CLI engine function
-void cli(void) {
+/* Main CLI engine */
+void cli(void)
+{
     char input[MAX_INPUT_SIZE];
     char *args[MAX_ARG_SIZE];
     int arg_count;
 
-    printf("Welcome to the Custom C CLI! Type 'help' for commands.\n");
+    printf("Welcome to SunlixDBMS CLI!\n");
+    printf("Type 'help' for available commands.\n");
 
-    // Start the infinite interactive loop
-    while (1) {
+    /* Start the interactive CLI loop */
+    while (1)
+    {
         printf("my_cli> ");
         fflush(stdout);
 
-        // Read user input safely
-        if (fgets(input, sizeof(input), stdin) == NULL) {
-            break; 
+        /* Read a complete command from the user */
+        if (fgets(input, sizeof(input), stdin) == NULL)
+        {
+            break;
         }
 
-        // Remove trailing newline character (\n)
+        /* Remove the newline added by fgets() */
         input[strcspn(input, "\n")] = '\0';
 
-        // Tokenize the input string by spaces
+        /* Ignore empty input */
+        if (input[0] == '\0')
+        {
+            continue;
+        }
+
+        /*
+         * Special handling for the create command.
+         *
+         * The JSON data can contain spaces, so normal
+         * strtok() tokenization cannot be used for it.
+         */
+        if (strncmp(input, "create ", 7) == 0)
+        {
+            char *filename;
+            char *data;
+
+            filename = strtok(input + 7, " ");
+
+            if (filename == NULL)
+            {
+                printf("Error: create requires a filename.\n");
+                printf("Example: create users.json {\"name\":\"DBMS\"}\n");
+                continue;
+            }
+
+            data = strtok(NULL, "");
+
+            if (data == NULL || data[0] == '\0')
+            {
+                printf("Error: create requires JSON data.\n");
+                printf("Example: create users.json {\"name\":\"Sunil\"}\n");
+                continue;
+            }
+
+            /* Send the JSON data to the writer function */
+            if (writer(filename, data) == 0)
+            {
+                printf("Data written successfully.\n");
+            }
+            else
+            {
+                printf("Failed to write data.\n");
+            }
+
+            continue;
+        }
+
+        /*
+         * Tokenize normal CLI commands.
+         */
         arg_count = 0;
+
         char *token = strtok(input, " ");
-        while (token != NULL && arg_count < MAX_ARG_SIZE) {
+
+        while (token != NULL && arg_count < MAX_ARG_SIZE)
+        {
             args[arg_count++] = token;
             token = strtok(NULL, " ");
         }
 
-        // Skip execution if user just hits enter
-        if (arg_count == 0) {
-            continue;
+        /* Execute built-in commands */
+        if (strcmp(args[0], "help") == 0)
+        {
+            cmd_help();
         }
-
-        // Evaluate the commands
-        if (strcmp(args[0], "exit") == 0) {
+        else if (strcmp(args[0], "exit") == 0)
+        {
             printf("Exiting program. Goodbye!\n");
             break;
-        } 
-        else if (strcmp(args[0], "help") == 0) {
-            cmd_help();
-        } 
-        else if (strcmp(args[0], "") == 0) {
-            if (arg_count < 2) {
-                printf("Error: 'greet' requires a name parameter. Example: greet Alice\n");
-            } else {
-                cmd_greet(args[1]);
-            }
-        } 
-        else if (strcmp(args[0], "add") == 0) {
-            if (arg_count < 3) {
-                printf("Error: 'add' requires two numbers. Example: add 5 10\n");
-            } else {
-                cmd_add(args[1], args[2]);
-            }
-        } 
-        else {
-            printf("Unknown command: '%s'. Type 'help' for options.\n", args[0]);
+        }
+        else
+        {
+            printf(
+                "Unknown command: '%s'. "
+                "Type 'help' for available commands.\n",
+                args[0]
+            );
         }
     }
 }
 
-// Built-in command logic implementations
-void cmd_help(void) {
-    printf("\nAvailable Commands:\n");
-    printf("  help                - Display this menu\n");
-    printf("  greet [name]        - Greet the user by name\n");
-    printf("  add [num1] [num2]   - Sum two integers together\n");
-    printf("  exit                - Safely quit the application\n\n");
-}
-
-void cmd_greet(char *name) {
-    printf("Hello, %s! Welcome to this custom execution environment.\n", name);
-}
-
-void cmd_add(char *num1_str, char *num2_str) {
-    int val1 = atoi(num1_str);
-    int val2 = atoi(num2_str);
-    printf("Result: %d\n", val1 + val2);
+/*
+ * Display all currently supported CLI commands.
+ */
+void cmd_help(void)
+{
+    printf("\nCommands:\n");
+    printf("  create <file> <json>  Create data\n");
+    printf("  read <file>           Read data\n");
+    printf("  update <file> <json>  Update data\n");
+    printf("  delete <file>         Delete data\n");
+    printf("  help                  Show commands\n");
+    printf("  exit                  Exit DBMS\n\n");
 }

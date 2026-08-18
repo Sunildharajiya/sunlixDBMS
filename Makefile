@@ -27,7 +27,9 @@ else
 endif
 
 # Header/include directories
-CFLAGS += -I src -I src/functions
+CFLAGS += -I src \
+          -I src/functions \
+          -I packages/cJSON \
 
 
 # ==========================================
@@ -36,7 +38,8 @@ CFLAGS += -I src -I src/functions
 TARGET =  sunlixDBMS
 SOURCES = src/main.c	\
 	src/functions/command-line.c	\
-	
+	src/functions/crud/writer.c	  \
+  packages/cJSON/cJSON.c
 
 OBJECTS = $(SOURCES:.c=.o)
 
@@ -44,8 +47,7 @@ OBJECTS = $(SOURCES:.c=.o)
 
 all: info $(TARGET)
 
-# Prints out a nice status message showing which compiler condition triggered
-info:
+# Prints out a nice status message showing which compiler condition triggeredinfo:
 	@echo "--- Building DBMS Engine with [$(COMPILER_TYPE)] ---"
 
 $(TARGET): $(OBJECTS)
@@ -56,4 +58,7 @@ $(TARGET): $(OBJECTS)
 
 clean:
 	rm -f $(TARGET) $(OBJECTS)
+
+run:
+	./sunlixDBMS
 
