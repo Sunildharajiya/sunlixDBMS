@@ -40,6 +40,7 @@ TARGET =  sunlixDBMS
 SOURCES = src/main.c	\
 	src/functions/command-line.c	\
 	src/functions/crud/writer.c	  \
+	src/functions/crud/updater.c	\
 	src/functions/utility/key_genrator.c \
   	packages/cJSON/cJSON.c
 

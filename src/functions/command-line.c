@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "./crud/writer.h"
+#include "./crud/updater.h"
 
 #define MAX_INPUT_SIZE 4096
 #define MAX_ARG_SIZE 64
@@ -44,8 +45,8 @@ void cli(void)
         /*
          * Special handling for the create command.
          *
-         * The JSON data can contain spaces, so normal
-         * strtok() tokenization cannot be used for it.
+         * JSON data can contain spaces, so the JSON
+         * portion is handled separately.
          */
         if (strncmp(input, "create ", 7) == 0)
         {
@@ -57,7 +58,10 @@ void cli(void)
             if (filename == NULL)
             {
                 printf("Error: create requires a filename.\n");
-                printf("Example: create users.json {\"name\":\"DBMS\"}\n");
+                printf(
+                    "Example: create users.json "
+                    "{\"name\":\"DBMS\"}\n"
+                );
                 continue;
             }
 
@@ -66,12 +70,18 @@ void cli(void)
             if (data == NULL || data[0] == '\0')
             {
                 printf("Error: create requires JSON data.\n");
-                printf("Example: create users.json {\"name\":\"Sunil\"}\n");
+                printf(
+                    "Example: create users.json "
+                    "{\"name\":\"Sunil\"}\n"
+                );
                 continue;
             }
 
-            /* Send the JSON data to the writer function */
-            if (writer(filename, data) == 0)
+            /*
+             * The current writer requires record length
+             * and index values for key generation.
+             */
+            if (writer(filename, data, 2, 1) == 0)
             {
                 printf("Data written successfully.\n");
             }
@@ -84,13 +94,93 @@ void cli(void)
         }
 
         /*
+         * Special handling for the update command.
+         *
+         * Format:
+         *
+         * update <file> <key> <field> <value>
+         */
+        if (strncmp(input, "update ", 7) == 0)
+        {
+            char *filename;
+            char *key;
+            char *field;
+            char *value;
+
+            filename = strtok(input + 7, " ");
+
+            if (filename == NULL)
+            {
+                printf("Error: update requires a filename.\n");
+                printf(
+                    "Example: update users.json "
+                    "<key> name Sunil\n"
+                );
+                continue;
+            }
+
+            key = strtok(NULL, " ");
+
+            if (key == NULL)
+            {
+                printf("Error: update requires a record key.\n");
+                continue;
+            }
+
+            field = strtok(NULL, " ");
+
+            if (field == NULL)
+            {
+                printf("Error: update requires a field name.\n");
+                continue;
+            }
+
+            /*
+             * Read the remaining input as the value.
+             *
+             * This allows values containing spaces.
+             */
+            value = strtok(NULL, "");
+
+            if (value == NULL || value[0] == '\0')
+            {
+                printf("Error: update requires a value.\n");
+                continue;
+            }
+
+            /*
+             * Send the update request to updater().
+             */
+            if (
+                updater(
+                    filename,
+                    key,
+                    field,
+                    value
+                ) == 0
+            )
+            {
+                printf("Data updated successfully.\n");
+            }
+            else
+            {
+                printf("Failed to update data.\n");
+            }
+
+            continue;
+        }
+
+        /*
          * Tokenize normal CLI commands.
          */
         arg_count = 0;
 
         char *token = strtok(input, " ");
 
-        while (token != NULL && arg_count < MAX_ARG_SIZE)
+        while (
+            token != NULL &&
+            arg_count < MAX_ARG_SIZE
+        )
         {
             args[arg_count++] = token;
             token = strtok(NULL, " ");
@@ -123,10 +213,29 @@ void cli(void)
 void cmd_help(void)
 {
     printf("\nCommands:\n");
-    printf("  create <file> <json>  Create data\n");
-    printf("  read <file>           Read data\n");
-    printf("  update <file> <json>  Update data\n");
-    printf("  delete <file>         Delete data\n");
-    printf("  help                  Show commands\n");
-    printf("  exit                  Exit DBMS\n\n");
+
+    printf(
+        "  create <file> <json>  Create data\n"
+    );
+
+    printf(
+        "  read <file>           Read data\n"
+    );
+
+    printf(
+        "  update <file> <key> <field> <value>  "
+        "Update data\n"
+    );
+
+    printf(
+        "  delete <file>         Delete data\n"
+    );
+
+    printf(
+        "  help                  Show commands\n"
+    );
+
+    printf(
+        "  exit                  Exit DBMS\n\n"
+    );
 }
