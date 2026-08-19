@@ -29,6 +29,7 @@ endif
 # Header/include directories
 CFLAGS += -I src \
           -I src/functions \
+	-I src/functions/utility \
           -I packages/cJSON \
 
 
@@ -39,7 +40,8 @@ TARGET =  sunlixDBMS
 SOURCES = src/main.c	\
 	src/functions/command-line.c	\
 	src/functions/crud/writer.c	  \
-  packages/cJSON/cJSON.c
+	src/functions/utility/key_genrator.c \
+  	packages/cJSON/cJSON.c
 
 OBJECTS = $(SOURCES:.c=.o)
 
