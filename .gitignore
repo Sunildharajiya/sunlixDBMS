@@ -1,0 +1,11 @@
+# Ignore compiled object files
+*.o
+
+# Ignore secured files
+*.secured
+
+# Ignore everything inside the data directory
+/data/*
+
+# Keep the data directory in Git
+!/data/Important.md

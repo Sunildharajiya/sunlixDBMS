@@ -12,3 +12,4 @@ The system uses JSON for data storage and provides its own command-line interfac
 
 ______________
 SunlixDBMS is a learning-focused project that will gradually evolve into a more capable database engine while exploring concepts such as data management, indexing, searching, memory management, and performance.
+
