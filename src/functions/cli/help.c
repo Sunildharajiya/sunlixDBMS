@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "commands.h"
+#include "cli.h"
 
 void cmd_help(void)
 {

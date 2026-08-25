@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include <key_genrator.h>
+#include <utility.h>
 
 char *generate_key(int record_length, int index)
 {

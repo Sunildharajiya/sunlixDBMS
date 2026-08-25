@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../crud/updater.h"
+#include "../crud/crud.h"
 
 void cmd_update(char *input)
 {

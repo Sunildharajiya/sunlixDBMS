@@ -1,12 +1,22 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../crud/writer.h"
+#include "../crud/crud.h"
 
 void cmd_create(char *input)
 {
     char *filename;
     char *data;
+
+    int record_length;
+    int index;
+
+    /*
+     * This variable is used to read the
+     * existing JSON data and determine
+     * the next record index.
+     */
+    cJSON *root;
 
     /*
      * Skip the "create " portion of the command.
@@ -45,9 +55,31 @@ void cmd_create(char *input)
     }
 
     /*
+     * Calculate the length of the entered data.
+     */
+    record_length = strlen(data);
+
+    /*
+     * Read the existing JSON data to
+     * calculate the next index.
+     */
+    root = reader(filename);
+
+    if (root == NULL)
+    {
+        index = 0;
+    }
+    else
+    {
+        index = cJSON_GetArraySize(root);
+
+        cJSON_Delete(root);
+    }
+
+    /*
      * Pass the JSON record to writer().
      */
-    if (writer(filename, data) == 0)
+    if (writer(filename, data, record_length, index) == 0)
     {
         printf(
             "Data written successfully.\n"

@@ -179,7 +179,9 @@ $(TARGET): $(OBJECTS)
 
 # Remove the executable and all generated object files.
 clean:
-	rm -f $(TARGET) $(OBJECTS)
+	find . -name "*.o" -delete
+	rm -f $(TARGET)
+	@echo "--- Build files removed ---"
 
 
 # ------------------------------------------------------------

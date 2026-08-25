@@ -2,10 +2,6 @@
 #include <string.h>
 
 #include "cli.h"
-#include "commands.h"
-#include "create.h"
-#include "update.h"
-
 #define MAX_INPUT_SIZE 4096
 #define MAX_ARG_SIZE 64
 
