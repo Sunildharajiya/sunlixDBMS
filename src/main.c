@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "./functions/command-line.h"
+#include "./functions/cli/cli.h"
 
 int main()
 {

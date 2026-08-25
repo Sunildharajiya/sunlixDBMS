@@ -3,16 +3,15 @@
 #include <string.h>
 #include <cJSON.h>
 
-#include <key_genrator.h>
+#include <utility.h>
 
 #define DATA_PATH "data"
 
 /*
- * Writes JSON data to a file and automatically
- * generates a unique key for the record.
+ * Writes a new JSON record to a JSON array file.
  *
  * filename       : Name of the JSON file.
- * data           : JSON data provided by the CRUD/CLI layer.
+ * data           : JSON object provided by the CRUD/CLI layer.
  * record_length  : Length of the record.
  * index          : Index value used by the key generator.
  *
@@ -30,7 +29,7 @@ int writer(
     char path[512];
 
     /*
-     * Create the complete file path.
+     * Create the complete path.
      *
      * Example:
      * data/users.json
@@ -44,49 +43,38 @@ int writer(
     );
 
     /*
-     * Parse the user-provided data.
-     *
-     * cJSON_Parse() converts the JSON text
-     * into a cJSON object that can be modified.
-     *
-     * It returns NULL when the supplied
-     * data is not valid JSON.
+     * Parse the new record supplied by the caller.
      */
-    cJSON *json = cJSON_Parse(data);
+    cJSON *record = cJSON_Parse(data);
 
-    if (json == NULL)
+    if (record == NULL)
     {
-        fprintf(stderr, "writer: invalid JSON data\n");
+        fprintf(
+            stderr,
+            "writer: invalid JSON data\n"
+        );
+
         return -1;
     }
 
     /*
-     * SunlixDBMS records are currently required
-     * to be JSON objects.
-     *
-     * Arrays, strings, numbers, etc. are rejected.
+     * Every record must be a JSON object.
      */
-    if (!cJSON_IsObject(json))
+    if (!cJSON_IsObject(record))
     {
         fprintf(
             stderr,
             "writer: data must be a JSON object\n"
         );
 
-        cJSON_Delete(json);
+        cJSON_Delete(record);
 
         return -1;
     }
 
     /*
-     * Generate the SunlixDBMS record key.
-     *
-     * Example:
-     *
-     * 26A0819T1917@0257
-     *
-     * The key contains the timestamp,
-     * record length and index value.
+     * Generate a unique SunlixDBMS key for
+     * the new record.
      */
     char *key = generate_key(
         record_length,
@@ -100,32 +88,160 @@ int writer(
             "writer: unable to generate key\n"
         );
 
-        cJSON_Delete(json);
+        cJSON_Delete(record);
 
         return -1;
     }
 
     /*
-     * Add the generated key to the JSON object.
+     * Add the generated key to the record.
      */
     cJSON_AddStringToObject(
-        json,
+        record,
         "key",
         key
     );
 
-    /*
-     * The key was allocated by generate_key().
-     * It is no longer needed after cJSON has
-     * copied its value into the JSON object.
-     */
     free(key);
 
     /*
-     * Convert the modified cJSON object back
-     * into formatted JSON text.
+     * Try to open the existing JSON file.
      */
-    char *formatted_json = cJSON_Print(json);
+    FILE *file = fopen(path, "r");
+
+    cJSON *database = NULL;
+
+    if (file != NULL)
+    {
+        /*
+         * Find the size of the existing file.
+         */
+        fseek(file, 0, SEEK_END);
+
+        long size = ftell(file);
+
+        if (size < 0)
+        {
+            fclose(file);
+            cJSON_Delete(record);
+
+            fprintf(
+                stderr,
+                "writer: unable to determine file size\n"
+            );
+
+            return -1;
+        }
+
+        rewind(file);
+
+        /*
+         * Allocate memory for the existing JSON.
+         */
+        char *buffer = malloc(
+            (size_t)size + 1
+        );
+
+        if (buffer == NULL)
+        {
+            fclose(file);
+            cJSON_Delete(record);
+
+            fprintf(
+                stderr,
+                "writer: memory allocation failed\n"
+            );
+
+            return -1;
+        }
+
+        /*
+         * Read the existing JSON file.
+         */
+        size_t read_size = fread(
+            buffer,
+            1,
+            (size_t)size,
+            file
+        );
+
+        fclose(file);
+
+        buffer[read_size] = '\0';
+
+        /*
+         * Parse the existing database.
+         */
+        database = cJSON_Parse(buffer);
+
+        free(buffer);
+
+        if (database == NULL)
+        {
+            cJSON_Delete(record);
+
+            fprintf(
+                stderr,
+                "writer: existing file contains invalid JSON\n"
+            );
+
+            return -1;
+        }
+
+        /*
+         * The database must be a JSON array.
+         */
+        if (!cJSON_IsArray(database))
+        {
+            cJSON_Delete(database);
+            cJSON_Delete(record);
+
+            fprintf(
+                stderr,
+                "writer: existing data must be a JSON array\n"
+            );
+
+            return -1;
+        }
+    }
+    else
+    {
+        /*
+         * The file does not exist.
+         *
+         * Create a new empty JSON array.
+         */
+        database = cJSON_CreateArray();
+
+        if (database == NULL)
+        {
+            cJSON_Delete(record);
+
+            fprintf(
+                stderr,
+                "writer: unable to create JSON array\n"
+            );
+
+            return -1;
+        }
+    }
+
+    /*
+     * Add the new record to the database array.
+     *
+     * cJSON_AddItemToArray() takes ownership
+     * of the record object.
+     */
+    cJSON_AddItemToArray(
+        database,
+        record
+    );
+
+    /*
+     * Convert the complete database array
+     * back into formatted JSON.
+     */
+    char *formatted_json = cJSON_Print(database);
 
     if (formatted_json == NULL)
     {
@@ -134,7 +250,7 @@ int writer(
             "writer: unable to format JSON\n"
         );
 
-        cJSON_Delete(json);
+        cJSON_Delete(database);
 
         return -1;
     }
@@ -142,10 +258,9 @@ int writer(
     /*
      * Open the file in write mode.
      *
-     * "w" creates the file if it does not exist
-     * and replaces the existing contents if it does.
+     * The complete updated array is written back.
      */
-    FILE *file = fopen(path, "w");
+    file = fopen(path, "w");
 
     if (file == NULL)
     {
@@ -154,13 +269,13 @@ int writer(
         );
 
         free(formatted_json);
-        cJSON_Delete(json);
+        cJSON_Delete(database);
 
         return -1;
     }
 
     /*
-     * Write the formatted JSON to the file.
+     * Write the updated database.
      */
     fprintf(
         file,
@@ -168,29 +283,18 @@ int writer(
         formatted_json
     );
 
-    /*
-     * Display the path of the file being written.
-     */
+    fclose(file);
+
     printf(
         "Writing file: %s\n",
         path
     );
 
     /*
-     * Close the file after writing.
-     */
-    fclose(file);
-
-    /*
-     * Free the formatted JSON string.
+     * Free allocated memory.
      */
     free(formatted_json);
-
-    /*
-     * Free the cJSON object and all of
-     * its internally allocated memory.
-     */
-    cJSON_Delete(json);
+    cJSON_Delete(database);
 
     return 0;
 }

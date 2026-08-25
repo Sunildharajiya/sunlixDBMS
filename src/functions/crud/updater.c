@@ -3,24 +3,18 @@
 #include <string.h>
 #include <cJSON.h>
 
-#include "updater.h"
+#include "crud.h"
 
 #define DATA_PATH "data"
 
-
 /*
- * Updates a field inside an existing JSON record.
- *
- * filename : Name of the JSON file.
- * key      : Unique key of the record.
- * field    : JSON field that needs to be updated.
- * value    : New value of the field.
+ * Update an existing field or add a new field
+ * inside a record identified by its unique key.
  *
  * Returns:
  *   0  -> Success
  *  -1  -> Error
  */
-
 int updater(
     const char *filename,
     const char *key,
@@ -29,11 +23,13 @@ int updater(
 )
 {
     char path[512];
+    char *buffer;
+    char *formatted_json;
+    long size;
+    size_t read_size;
 
     /*
-     * Create the complete file path:
-     *
-     * data/<filename>
+     * Build the complete file path.
      */
     snprintf(
         path,
@@ -44,8 +40,7 @@ int updater(
     );
 
     /*
-     * Open the existing JSON file
-     * in read mode.
+     * Open the database file.
      */
     FILE *file = fopen(path, "r");
 
@@ -56,12 +51,10 @@ int updater(
     }
 
     /*
-     * Find the size of the file.
+     * Get the file size.
      */
     fseek(file, 0, SEEK_END);
-
-    long size = ftell(file);
-
+    size = ftell(file);
     rewind(file);
 
     if (size < 0)
@@ -71,13 +64,9 @@ int updater(
     }
 
     /*
-     * Allocate memory to store
-     * the complete JSON file.
-     *
-     * One extra byte is reserved
-     * for the null terminator.
+     * Allocate memory for the file contents.
      */
-    char *buffer = malloc(size + 1);
+    buffer = malloc((size_t)size + 1);
 
     if (buffer == NULL)
     {
@@ -86,31 +75,24 @@ int updater(
     }
 
     /*
-     * Read the complete file into memory.
+     * Read the complete JSON file.
      */
-    size_t read_size = fread(
+    read_size = fread(
         buffer,
         1,
-        size,
+        (size_t)size,
         file
     );
 
-    /*
-     * Add the string terminator.
-     */
-    buffer[read_size] = '\0';
-
     fclose(file);
 
+    buffer[read_size] = '\0';
+
     /*
-     * Parse the file contents as JSON.
+     * Parse the JSON data.
      */
     cJSON *json = cJSON_Parse(buffer);
 
-    /*
-     * The file buffer is no longer needed
-     * after parsing.
-     */
     free(buffer);
 
     if (json == NULL)
@@ -124,85 +106,132 @@ int updater(
     }
 
     /*
-     * Get the "key" field from the JSON record.
-     *
-     * The key is used to make sure that
-     * we are updating the correct record.
+     * The database must contain an array
+     * of JSON records.
      */
-    cJSON *stored_key = cJSON_GetObjectItem(
-        json,
+    if (!cJSON_IsArray(json))
+    {
+        fprintf(
+            stderr,
+            "updater: database is not a JSON array\n"
+        );
+
+        cJSON_Delete(json);
+        return -1;
+    }
+
+   /*
+ * Search every record for the requested key.
+ */
+cJSON *record = NULL;
+cJSON *stored_key = NULL;
+
+int record_count = cJSON_GetArraySize(json);
+
+for (int i = 0; i < record_count; i++)
+{
+    record = cJSON_GetArrayItem(json, i);
+
+    if (record == NULL)
+        continue;
+
+    stored_key = cJSON_GetObjectItemCaseSensitive(
+        record,
         "key"
     );
 
-    if (stored_key == NULL ||
-        !cJSON_IsString(stored_key))
+    if (cJSON_IsString(stored_key) &&
+        strcmp(stored_key->valuestring, key) == 0)
     {
-        fprintf(
-            stderr,
-            "updater: key not found\n"
-        );
-
-        cJSON_Delete(json);
-
-        return -1;
+        break;
     }
 
-    /*
-     * Compare the supplied key with
-     * the key stored in the JSON record.
-     */
-    if (strcmp(
-            stored_key->valuestring,
-            key
-        ) != 0)
-    {
-        fprintf(
-            stderr,
-            "updater: record key does not match\n"
-        );
+    record = NULL;
+}
 
-        cJSON_Delete(json);
+/*
+ * Record was not found.
+ */
+if (record == NULL)
+{
+    fprintf(
+        stderr,
+        "updater: record key not found\n"
+    );
 
-        return -1;
-    }
+    cJSON_Delete(json);
+    return -1;
+}
 
     /*
-     * Find the field that needs to be updated.
+     * Find the requested field inside
+     * the matching record.
      */
-    cJSON *old_value = cJSON_GetObjectItem(
-        json,
+    cJSON *old_value = cJSON_GetObjectItemCaseSensitive(
+        record,
         field
     );
 
     /*
-     * If the field already exists,
-     * replace its value.
+     * Update the existing field.
      */
     if (old_value != NULL)
     {
-        cJSON_SetValuestring(
-            old_value,
-            value
-        );
+        /*
+         * Currently the updater accepts
+         * string values.
+         */
+        if (!cJSON_IsString(old_value))
+        {
+            fprintf(
+                stderr,
+                "updater: existing field is not a string\n"
+            );
+
+            cJSON_Delete(json);
+            return -1;
+        }
+
+        if (!cJSON_SetValuestring(
+                old_value,
+                value
+            ))
+        {
+            fprintf(
+                stderr,
+                "updater: unable to update field\n"
+            );
+
+            cJSON_Delete(json);
+            return -1;
+        }
     }
     /*
-     * If the field does not exist,
-     * create a new string field.
+     * Add the field if it doesn't exist.
      */
     else
     {
-        cJSON_AddStringToObject(
-            json,
-            field,
-            value
-        );
+        if (!cJSON_AddStringToObject(
+                record,
+                field,
+                value
+            ))
+        {
+            fprintf(
+                stderr,
+                "updater: unable to add field\n"
+            );
+
+            cJSON_Delete(json);
+            return -1;
+        }
     }
 
     /*
-     * Convert the modified JSON object
-     * back into formatted JSON text.
+     * Convert the modified JSON tree
+     * back into formatted JSON.
      */
-    char *formatted_json = cJSON_Print(json);
+    formatted_json = cJSON_Print(json);
 
     if (formatted_json == NULL)
     {
@@ -212,14 +241,11 @@ int updater(
         );
 
         cJSON_Delete(json);
-
         return -1;
     }
 
     /*
-     * Open the file in write mode.
-     *
-     * This replaces the old contents
+     * Replace the old database file
      * with the updated JSON.
      */
     file = fopen(path, "w");
@@ -237,7 +263,7 @@ int updater(
     }
 
     /*
-     * Write the updated JSON to the file.
+     * Write the updated database.
      */
     fprintf(
         file,
@@ -245,9 +271,6 @@ int updater(
         formatted_json
     );
 
-    /*
-     * Close the file after writing.
-     */
     fclose(file);
 
     printf(
@@ -256,13 +279,9 @@ int updater(
     );
 
     /*
-     * Free the memory allocated by cJSON_Print().
+     * Release allocated memory.
      */
     free(formatted_json);
-
-    /*
-     * Delete the parsed JSON tree.
-     */
     cJSON_Delete(json);
 
     return 0;
