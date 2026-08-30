@@ -1,12 +1,12 @@
 # Contributing to SunlixDBMS
 
-Thank you for contributing to SunlixDBMS! 💙
+Thank you for contributing to SunlixDBMS! 
 
 Please follow these guidelines to keep the project organized, maintainable, and reliable.
 
 ---
 
-## 📌 General Rules
+##  General Rules
 
 - Do not work directly on the `main` branch
 - Every contribution must be made through a Pull Request
@@ -23,7 +23,7 @@ Please follow these guidelines to keep the project organized, maintainable, and 
 
 ---
 
-## ✨ Adding a New Feature
+##  Adding a New Feature
 
 Follow these steps to add a new feature:
 
@@ -36,7 +36,7 @@ Follow these steps to add a new feature:
 7. Address review feedback using additional commits on the same branch
 8. The feature can be merged only after tests and documentation are complete
 
-### 🧪 Testing Requirement
+###  Testing Requirement
 
 Every new feature must include corresponding test(s) before final merge:
 
@@ -46,7 +46,7 @@ Every new feature must include corresponding test(s) before final merge:
 
 ---
 
-## 🐛 Fixing an Issue
+##  Fixing an Issue
 
 Follow these steps to fix an existing GitHub issue:
 
@@ -63,7 +63,7 @@ Follow these steps to fix an existing GitHub issue:
 
 ---
 
-## 🔄 Pull Request Updates
+##  Pull Request Updates
 
 - Continue using the same branch for changes requested during review
 - Do not create a new Pull Request for every review change
@@ -71,7 +71,7 @@ Follow these steps to fix an existing GitHub issue:
 
 ---
 
-## 📚 Documentation
+##  Documentation
 
 ### Placement
 
@@ -93,7 +93,7 @@ Update documentation whenever a contribution introduces or changes:
 
 ---
 
-## 🧪 Tests
+##  Tests
 
 Tests are required for all new functionality.
 
@@ -109,7 +109,7 @@ Tests are required for all new functionality.
 
 ---
 
-## 🌿 Branch Naming
+##  Branch Naming
 
 ### New Features
 
@@ -133,7 +133,7 @@ Always include the issue number:
 
 ---
 
-## 🔀 Pull Request Requirements
+##  Pull Request Requirements
 
 Every Pull Request should:
 
@@ -148,7 +148,7 @@ Every Pull Request should:
 
 ---
 
-## 🚫 Pre-Merge Checklist
+##  Pre-Merge Checklist
 
 Before a contribution can be merged, ensure all applicable requirements are met:
 
@@ -163,7 +163,7 @@ Before a contribution can be merged, ensure all applicable requirements are met:
 
 ---
 
-## 🤝 Contribution Principle
+##  Contribution Principle
 
 Every contribution should follow this workflow:
 
@@ -173,4 +173,4 @@ Build → Test → Document → Review → Merge
 
 Let's keep SunlixDBMS clean, reliable, and easy to maintain.
 
-Thank you for your contributions! 🎉
+Thank you for your contributions! 
