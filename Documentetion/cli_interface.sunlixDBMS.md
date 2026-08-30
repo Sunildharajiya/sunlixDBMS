@@ -5,6 +5,9 @@ The SunlixDBMS CLI is the command interface used to interact with the database e
 | COMMANDS |   |
 | --- | --- |
 |`create <file> <json>` | Create data |
+|`update <file> <key> <field> <value>` | Update data |
+| `delete <file> <key>` |  Delete record |
+| `delete-file <file>`  |  Delete file |
 |`help`  | Show commands | 
 |`exit`  |  Exit DBMS |
 
