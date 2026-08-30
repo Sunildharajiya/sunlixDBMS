@@ -27,6 +27,12 @@ int writer(
 )
 {
     char path[512];
+    FILE *file = NULL;
+    char *buffer = NULL;
+    char *formatted_json = NULL;
+    cJSON *record = NULL;
+    cJSON *database = NULL;
+    int result = -1;
 
     /*
      * Create the complete path.
@@ -45,7 +51,7 @@ int writer(
     /*
      * Parse the new record supplied by the caller.
      */
-    cJSON *record = cJSON_Parse(data);
+    record = cJSON_Parse(data);
 
     if (record == NULL)
     {
@@ -54,7 +60,7 @@ int writer(
             "writer: invalid JSON data\n"
         );
 
-        return -1;
+        goto cleanup;
     }
 
     /*
@@ -67,9 +73,7 @@ int writer(
             "writer: data must be a JSON object\n"
         );
 
-        cJSON_Delete(record);
-
-        return -1;
+        goto cleanup;
     }
 
     /*
@@ -88,9 +92,7 @@ int writer(
             "writer: unable to generate key\n"
         );
 
-        cJSON_Delete(record);
-
-        return -1;
+        goto cleanup;
     }
 
     /*
@@ -107,9 +109,7 @@ int writer(
     /*
      * Try to open the existing JSON file.
      */
-    FILE *file = fopen(path, "r");
-
-    cJSON *database = NULL;
+    file = fopen(path, "r");
 
     if (file != NULL)
     {
@@ -122,15 +122,12 @@ int writer(
 
         if (size < 0)
         {
-            fclose(file);
-            cJSON_Delete(record);
-
             fprintf(
                 stderr,
                 "writer: unable to determine file size\n"
             );
 
-            return -1;
+            goto cleanup;
         }
 
         rewind(file);
@@ -138,21 +135,18 @@ int writer(
         /*
          * Allocate memory for the existing JSON.
          */
-        char *buffer = malloc(
+        buffer = malloc(
             (size_t)size + 1
         );
 
         if (buffer == NULL)
         {
-            fclose(file);
-            cJSON_Delete(record);
-
             fprintf(
                 stderr,
                 "writer: memory allocation failed\n"
             );
 
-            return -1;
+            goto cleanup;
         }
 
         /*
@@ -166,6 +160,7 @@ int writer(
         );
 
         fclose(file);
+        file = NULL;
 
         buffer[read_size] = '\0';
 
@@ -174,18 +169,14 @@ int writer(
          */
         database = cJSON_Parse(buffer);
 
-        free(buffer);
-
         if (database == NULL)
         {
-            cJSON_Delete(record);
-
             fprintf(
                 stderr,
                 "writer: existing file contains invalid JSON\n"
             );
 
-            return -1;
+            goto cleanup;
         }
 
         /*
@@ -193,15 +184,12 @@ int writer(
          */
         if (!cJSON_IsArray(database))
         {
-            cJSON_Delete(database);
-            cJSON_Delete(record);
-
             fprintf(
                 stderr,
                 "writer: existing data must be a JSON array\n"
             );
 
-            return -1;
+            goto cleanup;
         }
     }
     else
@@ -215,14 +203,12 @@ int writer(
 
         if (database == NULL)
         {
-            cJSON_Delete(record);
-
             fprintf(
                 stderr,
                 "writer: unable to create JSON array\n"
             );
 
-            return -1;
+            goto cleanup;
         }
     }
 
@@ -241,7 +227,7 @@ int writer(
      * Convert the complete database array
      * back into formatted JSON.
      */
-    char *formatted_json = cJSON_Print(database);
+    formatted_json = cJSON_Print(database);
 
     if (formatted_json == NULL)
     {
@@ -250,9 +236,7 @@ int writer(
             "writer: unable to format JSON\n"
         );
 
-        cJSON_Delete(database);
-
-        return -1;
+        goto cleanup;
     }
 
     /*
@@ -268,33 +252,105 @@ int writer(
             "writer: unable to open file"
         );
 
-        free(formatted_json);
-        cJSON_Delete(database);
-
-        return -1;
+        goto cleanup;
     }
 
     /*
      * Write the updated database.
      */
-    fprintf(
-        file,
-        "%s\n",
-        formatted_json
-    );
+    if (fprintf(
+            file,
+            "%s\n",
+            formatted_json
+        ) < 0)
+    {
+        fprintf(
+            stderr,
+            "writer: unable to write database\n"
+        );
 
-    fclose(file);
+        goto cleanup;
+    }
+
+    /*
+     * Check close operation.
+     */
+    if (fclose(file) != 0)
+    {
+        file = NULL;
+
+        fprintf(
+            stderr,
+            "writer: unable to close file\n"
+        );
+
+        goto cleanup;
+    }
+
+    file = NULL;
+
+    result = 0;
 
     printf(
         "Writing file: %s\n",
         path
     );
 
-    /*
-     * Free allocated memory.
-     */
-    free(formatted_json);
-    cJSON_Delete(database);
+    /* =====================================================
+     * CENTRALIZED CLEANUP
+     * ===================================================== */
 
-    return 0;
+cleanup:
+
+    /*
+     * Close file if it is still open.
+     */
+    if (file != NULL)
+    {
+        fclose(file);
+        file = NULL;
+    }
+
+    /*
+     * Free file buffer.
+     */
+    if (buffer != NULL)
+    {
+        free(buffer);
+        buffer = NULL;
+    }
+
+    /*
+     * Free formatted JSON.
+     */
+    if (formatted_json != NULL)
+    {
+        free(formatted_json);
+        formatted_json = NULL;
+    }
+
+    /*
+     * Delete entire cJSON tree for record.
+     * Note: record is owned by database after cJSON_AddItemToArray,
+     * so only delete if we haven't added it yet (error path).
+     */
+    if (record != NULL && database == NULL)
+    {
+        cJSON_Delete(record);
+        record = NULL;
+    }
+
+    /*
+     * Delete entire cJSON tree for database.
+     */
+    if (database != NULL)
+    {
+        cJSON_Delete(database);
+        database = NULL;
+    }
+
+    /*
+     * Return final result.
+     */
+    return result;
 }
