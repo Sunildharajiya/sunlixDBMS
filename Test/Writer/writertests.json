@@ -1,0 +1,59 @@
+{
+    "test_suite": "SunlixDBMS Writer Tests",
+    "tests": [
+        {
+            "name": "Create first record",
+            "filename": "test_users.json",
+            "data": "{\"name\":\"Sunil\",\"age\":14}",
+            "record_length": 2,
+            "index": 1,
+            "expected_return": 0,
+            "expected_records": 1
+        },
+        {
+            "name": "Create second record",
+            "filename": "test_users.json",
+            "data": "{\"name\":\"Alex\",\"age\":15}",
+            "record_length": 2,
+            "index": 2,
+            "expected_return": 0,
+            "expected_records": 2
+        },
+        {
+            "name": "Create third record",
+            "filename": "test_users.json",
+            "data": "{\"name\":\"John\",\"age\":16}",
+            "record_length": 2,
+            "index": 3,
+            "expected_return": 0,
+            "expected_records": 3
+        },
+        {
+            "name": "Reject invalid JSON",
+            "filename": "test_invalid.json",
+            "data": "{\"name\":\"Invalid\",}",
+            "record_length": 2,
+            "index": 1,
+            "expected_return": -1,
+            "expected_records": 0
+        },
+        {
+            "name": "Reject JSON array",
+            "filename": "test_array.json",
+            "data": "[{\"name\":\"Sunil\"}]",
+            "record_length": 2,
+            "index": 1,
+            "expected_return": -1,
+            "expected_records": 0
+        },
+        {
+            "name": "Create nested JSON record",
+            "filename": "test_nested.json",
+            "data": "{\"name\":\"Sunil\",\"skills\":{\"language\":\"C\",\"level\":\"advanced\"}}",
+            "record_length": 2,
+            "index": 1,
+            "expected_return": 0,
+            "expected_records": 1
+        }
+    ]
+}
