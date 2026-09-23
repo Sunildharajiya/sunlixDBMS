@@ -4,14 +4,14 @@
 #include "cJSON.h"
 
 /* Reader */
-cJSON *reader(const char *filename);
+cJSON *reader(
+    const char *filename
+);
 
 /* Writer */
 int writer(
     const char *filename,
-    const char *data,
-    int record_length,
-    int index
+    const char *data
 );
 
 /* Update */
@@ -23,9 +23,9 @@ int updater(
 );
 
 /* Delete */
-int delete_record(
+int deleter(
     const char *filename,
-    int index
+    const char *key
 );
 
 #endif
