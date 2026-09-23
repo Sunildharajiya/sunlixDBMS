@@ -136,4 +136,11 @@ int deleted_metadata_contains(
     const char *record_id
 );
 
+int metadata_update_subfile_end(
+    cJSON *metadata,
+    int file_id,
+    int end_index
+);
+
+
 #endif
