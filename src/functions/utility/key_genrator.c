@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <time.h>
 
-char *generate_key(int file_id, int index)
+#include <utility.h>
+
+char *generate_key(int record_length, int index)
 {
     time_t now = time(NULL);
     struct tm *local = localtime(&now);
@@ -27,13 +29,14 @@ char *generate_key(int file_id, int index)
     snprintf(
         key,
         32,
-        "%02d%c%02dT%02d%02d@%03d%04d",
+        "%02d%c%02dT%02d%02d@%02d%02d",
         year,
         month,
         local->tm_mon + 1,
         local->tm_mday,
         local->tm_hour,
-        file_id,
+        local->tm_min,
+        record_length,
         index
     );
 
