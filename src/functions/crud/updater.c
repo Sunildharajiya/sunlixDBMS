@@ -7,6 +7,20 @@
 
 #define DATA_PATH "data"
 
+/*
+ * Update an existing field or add a new field
+ * inside a record identified by its unique key.
+ *
+ * Parameters:
+ *   filename -> JSON database filename
+ *   key      -> unique key of the record
+ *   field    -> field to update/add
+ *   value    -> new string value
+ *
+ * Returns:
+ *    0 -> Success
+ *   -1 -> Error
+ */
 int updater(
     const char *filename,
     const char *key,
@@ -14,27 +28,49 @@ int updater(
     const char *value
 )
 {
+    /*
+     * File path.
+     */
     char path[512];
 
+    /*
+     * File handle.
+     */
     FILE *file = NULL;
 
+    /*
+     * Dynamically allocated memory.
+     */
     char *buffer = NULL;
     char *formatted_json = NULL;
 
+    /*
+     * cJSON objects.
+     */
     cJSON *json = NULL;
     cJSON *record = NULL;
     cJSON *stored_key = NULL;
     cJSON *old_value = NULL;
-    cJSON *deleted = NULL;
 
+    /*
+     * File information.
+     */
     long size;
     size_t read_size;
 
+    /*
+     * Default result is failure.
+     *
+     * It will only become 0 when the
+     * complete update succeeds.
+     */
     int result = -1;
 
-    /*
-     * Validate arguments.
-     */
+
+    /* -------------------------------------------------
+     * 1. Validate arguments
+     * ------------------------------------------------- */
+
     if (filename == NULL ||
         key == NULL ||
         field == NULL ||
@@ -48,43 +84,11 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Do not allow updater to modify
-     * the generated key.
-     */
-    if (strcmp(field, "key") == 0)
-    {
-        fprintf(
-            stderr,
-            "updater: key field cannot be modified\n"
-        );
 
-        goto cleanup;
-    }
+    /* -------------------------------------------------
+     * 2. Build database file path
+     * ------------------------------------------------- */
 
-    /*
-     * Do not allow updater to modify
-     * the deletion flag.
-     *
-     * Deletion must be handled by deleter().
-     */
-    if (strcmp(field, "delete") == 0)
-    {
-        fprintf(
-            stderr,
-            "updater: delete field cannot be modified\n"
-        );
-
-        goto cleanup;
-    }
-
-    /*
-     * Build data file path.
-     *
-     * Example:
-     *
-     * data/users_001.json
-     */
     int path_result = snprintf(
         path,
         sizeof(path),
@@ -104,13 +108,12 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Open data file.
-     */
-    file = fopen(
-        path,
-        "r"
-    );
+
+    /* -------------------------------------------------
+     * 3. Open database file for reading
+     * ------------------------------------------------- */
+
+    file = fopen(path, "r");
 
     if (file == NULL)
     {
@@ -121,9 +124,11 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Move to end of file.
-     */
+
+    /* -------------------------------------------------
+     * 4. Move to end of file
+     * ------------------------------------------------- */
+
     if (fseek(file, 0, SEEK_END) != 0)
     {
         fprintf(
@@ -134,9 +139,11 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Get file size.
-     */
+
+    /* -------------------------------------------------
+     * 5. Get file size
+     * ------------------------------------------------- */
+
     size = ftell(file);
 
     if (size < 0)
@@ -149,17 +156,19 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Return to beginning.
-     */
+
+    /* -------------------------------------------------
+     * 6. Return to beginning of file
+     * ------------------------------------------------- */
+
     rewind(file);
 
-    /*
-     * Allocate memory.
-     */
-    buffer = malloc(
-        (size_t)size + 1
-    );
+
+    /* -------------------------------------------------
+     * 7. Allocate memory for file contents
+     * ------------------------------------------------- */
+
+    buffer = malloc((size_t)size + 1);
 
     if (buffer == NULL)
     {
@@ -171,9 +180,11 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Read complete JSON file.
-     */
+
+    /* -------------------------------------------------
+     * 8. Read complete JSON file
+     * ------------------------------------------------- */
+
     read_size = fread(
         buffer,
         1,
@@ -181,6 +192,10 @@ int updater(
         file
     );
 
+    /*
+     * Check whether fread() encountered
+     * an actual file error.
+     */
     if (ferror(file))
     {
         fprintf(
@@ -191,17 +206,24 @@ int updater(
         goto cleanup;
     }
 
+    /*
+     * Always terminate the string.
+     */
     buffer[read_size] = '\0';
 
-    /*
-     * File is no longer needed.
-     */
+
+    /* -------------------------------------------------
+     * 9. File is no longer required
+     * ------------------------------------------------- */
+
     fclose(file);
     file = NULL;
 
-    /*
-     * Parse JSON.
-     */
+
+    /* -------------------------------------------------
+     * 10. Parse JSON
+     * ------------------------------------------------- */
+
     json = cJSON_Parse(buffer);
 
     if (json == NULL)
@@ -214,15 +236,19 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Buffer is no longer needed.
-     */
+
+    /* -------------------------------------------------
+     * 11. Buffer is no longer required
+     * ------------------------------------------------- */
+
     free(buffer);
     buffer = NULL;
 
-    /*
-     * Database must be an array.
-     */
+
+    /* -------------------------------------------------
+     * 12. Verify database structure
+     * ------------------------------------------------- */
+
     if (!cJSON_IsArray(json))
     {
         fprintf(
@@ -233,18 +259,17 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Search for record by key.
-     */
+
+    /* -------------------------------------------------
+     * 13. Search record by unique key
+     * ------------------------------------------------- */
+
     int record_count = cJSON_GetArraySize(json);
 
     for (int i = 0; i < record_count; i++)
     {
         cJSON *current_record =
-            cJSON_GetArrayItem(
-                json,
-                i
-            );
+            cJSON_GetArrayItem(json, i);
 
         /*
          * Ignore invalid array elements.
@@ -256,7 +281,7 @@ int updater(
         }
 
         /*
-         * Get record key.
+         * Get "key" from current record.
          */
         stored_key =
             cJSON_GetObjectItemCaseSensitive(
@@ -265,7 +290,7 @@ int updater(
             );
 
         /*
-         * Compare keys.
+         * Check whether the key matches.
          */
         if (cJSON_IsString(stored_key) &&
             stored_key->valuestring != NULL &&
@@ -279,9 +304,11 @@ int updater(
         }
     }
 
-    /*
-     * Record does not exist.
-     */
+
+    /* -------------------------------------------------
+     * 14. Record not found
+     * ------------------------------------------------- */
+
     if (record == NULL)
     {
         fprintf(
@@ -293,44 +320,26 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Check soft-delete status.
-     *
-     * Deleted records must not be updated.
-     */
-    deleted =
-        cJSON_GetObjectItemCaseSensitive(
-            record,
-            "delete"
-        );
 
-    if (cJSON_IsTrue(deleted))
-    {
-        fprintf(
-            stderr,
-            "updater: record is deleted: %s\n",
-            key
-        );
+    /* -------------------------------------------------
+     * 15. Find requested field
+     * ------------------------------------------------- */
 
-        goto cleanup;
-    }
-
-    /*
-     * Find requested field.
-     */
     old_value =
         cJSON_GetObjectItemCaseSensitive(
             record,
             field
         );
 
-    /*
-     * Update existing field.
-     */
+
+    /* -------------------------------------------------
+     * 16. Update existing field
+     * ------------------------------------------------- */
+
     if (old_value != NULL)
     {
         /*
-         * Current updater supports
+         * This version of updater supports
          * string values only.
          */
         if (!cJSON_IsString(old_value))
@@ -346,7 +355,7 @@ int updater(
         }
 
         /*
-         * Replace old value.
+         * Replace old string value.
          */
         if (cJSON_SetValuestring(
                 old_value,
@@ -363,9 +372,11 @@ int updater(
         }
     }
 
-    /*
-     * Add new field.
-     */
+
+    /* -------------------------------------------------
+     * 17. Add field if it doesn't exist
+     * ------------------------------------------------- */
+
     else
     {
         if (cJSON_AddStringToObject(
@@ -384,9 +395,11 @@ int updater(
         }
     }
 
-    /*
-     * Convert JSON tree back to text.
-     */
+
+    /* -------------------------------------------------
+     * 18. Convert JSON tree back to text
+     * ------------------------------------------------- */
+
     formatted_json = cJSON_Print(json);
 
     if (formatted_json == NULL)
@@ -399,13 +412,12 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Open database for writing.
-     */
-    file = fopen(
-        path,
-        "w"
-    );
+
+    /* -------------------------------------------------
+     * 19. Open database for writing
+     * ------------------------------------------------- */
+
+    file = fopen(path, "w");
 
     if (file == NULL)
     {
@@ -416,9 +428,11 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Write updated JSON.
-     */
+
+    /* -------------------------------------------------
+     * 20. Write updated JSON
+     * ------------------------------------------------- */
+
     if (fprintf(
             file,
             "%s\n",
@@ -433,11 +447,17 @@ int updater(
         goto cleanup;
     }
 
-    /*
-     * Close database.
-     */
+
+    /* -------------------------------------------------
+     * 21. Check close operation
+     * ------------------------------------------------- */
+
     if (fclose(file) != 0)
     {
+        /*
+         * fclose() may report errors such as
+         * buffered write failures.
+         */
         file = NULL;
 
         fprintf(
@@ -450,40 +470,63 @@ int updater(
 
     file = NULL;
 
-    /*
-     * Update successful.
-     */
-    result = 0;
 
-    printf(
-        "Updated record: %s\n",
-        key
-    );
+    /* -------------------------------------------------
+     * 22. Operation successful
+     * ------------------------------------------------- */
+
+    result = 0;
 
     printf(
         "Updated file: %s\n",
         path
     );
 
+
+/* =====================================================
+ * CENTRALIZED CLEANUP
+ * ===================================================== */
+
 cleanup:
 
+    /*
+     * Close file if it is still open.
+     */
     if (file != NULL)
     {
         fclose(file);
         file = NULL;
     }
 
-    free(buffer);
-    buffer = NULL;
+    /*
+     * Free file buffer.
+     */
+    if (buffer != NULL)
+    {
+        free(buffer);
+        buffer = NULL;
+    }
 
-    free(formatted_json);
-    formatted_json = NULL;
+    /*
+     * Free formatted JSON.
+     */
+    if (formatted_json != NULL)
+    {
+        free(formatted_json);
+        formatted_json = NULL;
+    }
 
+    /*
+     * Delete entire cJSON tree.
+     */
     if (json != NULL)
     {
         cJSON_Delete(json);
         json = NULL;
     }
 
+    /*
+     * Return final result.
+     */
     return result;
 }
