@@ -3,71 +3,43 @@
 #include <string.h>
 #include <cJSON.h>
 
-#include "crud.h"
-
 #define DATA_PATH "data"
 
 /*
- * Soft-deletes a JSON record from a SunlixDBMS subfile.
+ * Deletes a JSON record file from the SunlixDBMS
+ * data directory.
  *
- * filename : Physical subfile name.
- * key      : Unique record key.
+ * filename : Name of the JSON file.
  *
  * Returns:
  *   0  -> Success
  *  -1  -> Error
  */
-int deleter(
-    const char *filename,
-    const char *key
-)
+int deleter(const char *filename)
 {
     char path[512];
-    FILE *file;
-    long file_size;
-    char *buffer;
-    size_t bytes_read;
-    cJSON *json;
-    cJSON *record;
-    cJSON *record_key;
-    cJSON *delete_field;
-
-    if (filename == NULL || key == NULL)
-    {
-        fprintf(
-            stderr,
-            "deleter: invalid argument\n"
-        );
-
-        return -1;
-    }
 
     /*
-     * Build the physical subfile path.
+     * Create the complete path to the JSON file.
      *
      * Example:
-     * data/users_001.json
+     * data/users.json
      */
-    if (snprintf(
-            path,
-            sizeof(path),
-            "%s/%s",
-            DATA_PATH,
-            filename
-        ) >= (int)sizeof(path))
-    {
-        fprintf(
-            stderr,
-            "deleter: path too long\n"
-        );
-
-        return -1;
-    }
+    snprintf(
+        path,
+        sizeof(path),
+        "%s/%s",
+        DATA_PATH,
+        filename
+    );
 
     /*
-     * Open the physical subfile.
+     * Open the file in read mode first.
+     *
+     * This verifies that the record exists and
+     * also allows us to validate its JSON data.
      */
-    file = fopen(path, "r");
+    FILE *file = fopen(path, "r");
 
     if (file == NULL)
     {
@@ -81,23 +53,14 @@ int deleter(
     }
 
     /*
-     * Determine the file size.
+     * Move to the end of the file to determine
+     * the number of bytes that need to be read.
      */
-    if (fseek(file, 0, SEEK_END) != 0)
-    {
-        fclose(file);
+    fseek(file, 0, SEEK_END);
 
-        fprintf(
-            stderr,
-            "deleter: unable to seek file\n"
-        );
+    long size = ftell(file);
 
-        return -1;
-    }
-
-    file_size = ftell(file);
-
-    if (file_size < 0)
+    if (size < 0)
     {
         fclose(file);
 
@@ -109,12 +72,17 @@ int deleter(
         return -1;
     }
 
+    /*
+     * Move back to the beginning of the file
+     * before reading its contents.
+     */
     rewind(file);
 
     /*
-     * Allocate memory for the complete JSON file.
+     * Allocate enough memory for the complete
+     * JSON file plus the null terminator.
      */
-    buffer = malloc((size_t)file_size + 1);
+    char *buffer = malloc((size_t)size + 1);
 
     if (buffer == NULL)
     {
@@ -129,36 +97,30 @@ int deleter(
     }
 
     /*
-     * Read the complete subfile.
+     * Read the complete JSON file into memory.
      */
-    bytes_read = fread(
+    size_t read_size = fread(
         buffer,
         1,
-        (size_t)file_size,
+        (size_t)size,
         file
     );
 
-    if (ferror(file))
-    {
-        free(buffer);
-        fclose(file);
-
-        fprintf(
-            stderr,
-            "deleter: failed to read file\n"
-        );
-
-        return -1;
-    }
-
     fclose(file);
 
-    buffer[bytes_read] = '\0';
+    /*
+     * Add the null terminator so that cJSON_Parse()
+     * can treat the buffer as a normal C string.
+     */
+    buffer[read_size] = '\0';
 
     /*
-     * Parse the JSON.
+     * Parse the JSON data.
+     *
+     * This makes sure that the file contains valid
+     * SunlixDBMS JSON before deleting it.
      */
-    json = cJSON_Parse(buffer);
+    cJSON *json = cJSON_Parse(buffer);
 
     free(buffer);
 
@@ -173,14 +135,14 @@ int deleter(
     }
 
     /*
-     * Every physical SunlixDBMS data file contains
-     * a JSON array of records.
+     * The current SunlixDBMS writer stores every
+     * record as a JSON object.
      */
-    if (!cJSON_IsArray(json))
+    if (!cJSON_IsObject(json))
     {
         fprintf(
             stderr,
-            "deleter: data must be a JSON array\n"
+            "deleter: data must be a JSON object\n"
         );
 
         cJSON_Delete(json);
@@ -189,180 +151,30 @@ int deleter(
     }
 
     /*
-     * Search for the record using its unique key.
+     * The JSON object is no longer needed because
+     * the actual delete operation removes the
+     * corresponding record file.
      */
-    cJSON_ArrayForEach(record, json)
-    {
-        if (!cJSON_IsObject(record))
-        {
-            continue;
-        }
-
-        record_key = cJSON_GetObjectItemCaseSensitive(
-            record,
-            "key"
-        );
-
-        if (!cJSON_IsString(record_key))
-        {
-            continue;
-        }
-
-        if (strcmp(record_key->valuestring, key) == 0)
-        {
-            break;
-        }
-
-        record = NULL;
-    }
-
-    /*
-     * Record was not found.
-     */
-    if (record == NULL)
-    {
-        fprintf(
-            stderr,
-            "deleter: record not found: %s\n",
-            key
-        );
-
-        cJSON_Delete(json);
-
-        return -1;
-    }
-
-    /*
-     * Check whether the record is already deleted.
-     */
-    delete_field = cJSON_GetObjectItemCaseSensitive(
-        record,
-        "delete"
-    );
-
-    if (cJSON_IsTrue(delete_field))
-    {
-        fprintf(
-            stderr,
-            "deleter: record already deleted: %s\n",
-            key
-        );
-
-        cJSON_Delete(json);
-
-        return -1;
-    }
-
-    /*
-     * Mark the record as deleted.
-     *
-     * The record itself remains inside the database.
-     */
-    if (!cJSON_ReplaceItemInObject(
-            record,
-            "delete",
-            cJSON_CreateTrue()
-        ))
-    {
-        /*
-         * If the delete field does not already exist,
-         * add it instead.
-         */
-        if (!cJSON_AddBoolToObject(
-                record,
-                "delete",
-                1
-            ))
-        {
-            fprintf(
-                stderr,
-                "deleter: unable to mark record as deleted\n"
-            );
-
-            cJSON_Delete(json);
-
-            return -1;
-        }
-    }
-
-    /*
-     * Convert the updated database back to JSON.
-     */
-    char *output = cJSON_Print(json);
-
-    if (output == NULL)
-    {
-        fprintf(
-            stderr,
-            "deleter: unable to serialize JSON\n"
-        );
-
-        cJSON_Delete(json);
-
-        return -1;
-    }
-
-    /*
-     * Reopen the same physical subfile for writing.
-     */
-    file = fopen(path, "w");
-
-    if (file == NULL)
-    {
-        fprintf(
-            stderr,
-            "deleter: unable to open file for writing: %s\n",
-            path
-        );
-
-        free(output);
-        cJSON_Delete(json);
-
-        return -1;
-    }
-
-    /*
-     * Write the updated JSON.
-     */
-    if (fputs(output, file) == EOF)
-    {
-        fprintf(
-            stderr,
-            "deleter: failed to write updated data\n"
-        );
-
-        fclose(file);
-        free(output);
-        cJSON_Delete(json);
-
-        return -1;
-    }
-
-    if (fclose(file) != 0)
-    {
-        fprintf(
-            stderr,
-            "deleter: failed to close file\n"
-        );
-
-        free(output);
-        cJSON_Delete(json);
-
-        return -1;
-    }
-
-    free(output);
     cJSON_Delete(json);
 
     /*
-     * The physical record has been soft-deleted.
-     *
-     * Deleted metadata will be handled separately
-     * by the metadataHandler.
+     * Delete the JSON file from the data directory.
+     */
+    if (remove(path) != 0)
+    {
+        perror(
+            "deleter: unable to delete file"
+        );
+
+        return -1;
+    }
+
+    /*
+     * Inform the user that the record was deleted.
      */
     printf(
-        "Deleted record: %s\n",
-        key
+        "Deleted file: %s\n",
+        path
     );
 
     return 0;

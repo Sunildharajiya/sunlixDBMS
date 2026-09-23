@@ -4,206 +4,52 @@
 #include <cJSON.h>
 
 #include <utility.h>
-#include <metadata.h>
 
 #define DATA_PATH "data"
 
-static int parse_filename(
-    const char *filename,
-    char *data_loby,
-    size_t data_loby_size,
-    int *file_id
-)
-{
-    char name[512];
-
-    if (filename == NULL ||
-        data_loby == NULL ||
-        file_id == NULL)
-    {
-        return -1;
-    }
-
-    if (snprintf(
-            name,
-            sizeof(name),
-            "%s",
-            filename
-        ) >= (int)sizeof(name))
-    {
-        return -1;
-    }
-
-    char *extension = strrchr(name, '.');
-
-    if (extension == NULL ||
-        strcmp(extension, ".json") != 0)
-    {
-        return -1;
-    }
-
-    *extension = '\0';
-
-    char *separator = strrchr(name, '_');
-
-    if (separator == NULL ||
-        separator == name ||
-        *(separator + 1) == '\0')
-    {
-        return -1;
-    }
-
-    *separator = '\0';
-
-    char *end = NULL;
-
-    long parsed_id = strtol(
-        separator + 1,
-        &end,
-        10
-    );
-
-    if (*end != '\0' ||
-        parsed_id < 1 ||
-        parsed_id > 999)
-    {
-        return -1;
-    }
-
-    if (strlen(name) >= data_loby_size)
-    {
-        return -1;
-    }
-
-    strcpy(data_loby, name);
-
-    *file_id = (int)parsed_id;
-
-    return 0;
-}
-
+/*
+ * Writes a new JSON record to a JSON array file.
+ *
+ * filename       : Name of the JSON file.
+ * data           : JSON object provided by the CRUD/CLI layer.
+ * record_length  : Length of the record.
+ * index          : Index value used by the key generator.
+ *
+ * Returns:
+ *   0  -> Success
+ *  -1  -> Error
+ */
 int writer(
     const char *filename,
-    const char *data
+    const char *data,
+    int record_length,
+    int index
 )
 {
     char path[512];
-    char data_loby[256];
-
     FILE *file = NULL;
-
     char *buffer = NULL;
     char *formatted_json = NULL;
-    char *key = NULL;
-
     cJSON *record = NULL;
     cJSON *database = NULL;
-    cJSON *metadata = NULL;
-
-    int file_id;
-    int index;
-
     int result = -1;
 
     /*
-     * Check arguments.
-     */
-    if (filename == NULL ||
-        data == NULL)
-    {
-        fprintf(
-            stderr,
-            "writer: invalid argument\n"
-        );
-
-        goto cleanup;
-    }
-
-    /*
-     * Extract data lobby and subfile ID.
+     * Create the complete path.
      *
      * Example:
-     *
-     * users_001.json
-     *
-     * data_loby = users
-     * file_id   = 1
+     * data/users.json
      */
-    if (parse_filename(
-            filename,
-            data_loby,
-            sizeof(data_loby),
-            &file_id
-        ) != 0)
-    {
-        fprintf(
-            stderr,
-            "writer: invalid subfile name: %s\n",
-            filename
-        );
-
-        goto cleanup;
-    }
+    snprintf(
+        path,
+        sizeof(path),
+        "%s/%s",
+        DATA_PATH,
+        filename
+    );
 
     /*
-     * Load metadata.
-     *
-     * Example:
-     *
-     * metadata/users.meta.json
-     */
-    metadata = metadata_load(data_loby);
-
-    if (metadata == NULL)
-    {
-        fprintf(
-            stderr,
-            "writer: unable to load metadata\n"
-        );
-
-        goto cleanup;
-    }
-
-    /*
-     * Get the next global record index.
-     */
-    index = metadata_get_next_index(metadata);
-
-    if (index < 1)
-    {
-        fprintf(
-            stderr,
-            "writer: invalid nextIndex\n"
-        );
-
-        goto cleanup;
-    }
-
-    /*
-     * Create data file path.
-     *
-     * Example:
-     *
-     * data/users_001.json
-     */
-    if (snprintf(
-            path,
-            sizeof(path),
-            "%s/%s",
-            DATA_PATH,
-            filename
-        ) >= (int)sizeof(path))
-    {
-        fprintf(
-            stderr,
-            "writer: path too long\n"
-        );
-
-        goto cleanup;
-    }
-
-    /*
-     * Parse the new record.
+     * Parse the new record supplied by the caller.
      */
     record = cJSON_Parse(data);
 
@@ -218,7 +64,7 @@ int writer(
     }
 
     /*
-     * Every record must be an object.
+     * Every record must be a JSON object.
      */
     if (!cJSON_IsObject(record))
     {
@@ -231,13 +77,11 @@ int writer(
     }
 
     /*
-     * Generate the unique record key.
-     *
-     * file_id = physical subfile ID
-     * index   = global record index
+     * Generate a unique SunlixDBMS key for
+     * the new record.
      */
-    key = generate_key(
-        file_id,
+    char *key = generate_key(
+        record_length,
         index
     );
 
@@ -252,7 +96,7 @@ int writer(
     }
 
     /*
-     * Add generated key to record.
+     * Add the generated key to the record.
      */
     cJSON_AddStringToObject(
         record,
@@ -261,39 +105,18 @@ int writer(
     );
 
     free(key);
-    key = NULL;
 
     /*
-     * New records are not deleted.
+     * Try to open the existing JSON file.
      */
-    cJSON_AddBoolToObject(
-        record,
-        "delete",
-        0
-    );
-
-    /*
-     * Try to open existing subfile.
-     */
-    file = fopen(
-        path,
-        "r"
-    );
+    file = fopen(path, "r");
 
     if (file != NULL)
     {
         /*
-         * Find file size.
+         * Find the size of the existing file.
          */
-        if (fseek(file, 0, SEEK_END) != 0)
-        {
-            fprintf(
-                stderr,
-                "writer: unable to seek file\n"
-            );
-
-            goto cleanup;
-        }
+        fseek(file, 0, SEEK_END);
 
         long size = ftell(file);
 
@@ -310,7 +133,7 @@ int writer(
         rewind(file);
 
         /*
-         * Allocate buffer.
+         * Allocate memory for the existing JSON.
          */
         buffer = malloc(
             (size_t)size + 1
@@ -327,7 +150,7 @@ int writer(
         }
 
         /*
-         * Read existing JSON.
+         * Read the existing JSON file.
          */
         size_t read_size = fread(
             buffer,
@@ -342,7 +165,7 @@ int writer(
         buffer[read_size] = '\0';
 
         /*
-         * Parse existing database.
+         * Parse the existing database.
          */
         database = cJSON_Parse(buffer);
 
@@ -357,7 +180,7 @@ int writer(
         }
 
         /*
-         * Existing database must be an array.
+         * The database must be a JSON array.
          */
         if (!cJSON_IsArray(database))
         {
@@ -372,12 +195,9 @@ int writer(
     else
     {
         /*
-         * Subfile does not exist.
+         * The file does not exist.
          *
-         * Create a new JSON array.
-         *
-         * IMPORTANT:
-         * We do NOT touch or delete metadata here.
+         * Create a new empty JSON array.
          */
         database = cJSON_CreateArray();
 
@@ -393,19 +213,19 @@ int writer(
     }
 
     /*
-     * Add the new record to the database.
+     * Add the new record to the database array.
      *
-     * database now owns record.
+     * cJSON_AddItemToArray() takes ownership
+     * of the record object.
      */
     cJSON_AddItemToArray(
         database,
         record
     );
 
-    record = NULL;
-
     /*
-     * Convert database to formatted JSON.
+     * Convert the complete database array
+     * back into formatted JSON.
      */
     formatted_json = cJSON_Print(database);
 
@@ -420,24 +240,23 @@ int writer(
     }
 
     /*
-     * Open data file for writing.
+     * Open the file in write mode.
+     *
+     * The complete updated array is written back.
      */
-    file = fopen(
-        path,
-        "w"
-    );
+    file = fopen(path, "w");
 
     if (file == NULL)
     {
         perror(
-            "writer: unable to open data file"
+            "writer: unable to open file"
         );
 
         goto cleanup;
     }
 
     /*
-     * Write updated database.
+     * Write the updated database.
      */
     if (fprintf(
             file,
@@ -454,7 +273,7 @@ int writer(
     }
 
     /*
-     * Close data file.
+     * Check close operation.
      */
     if (fclose(file) != 0)
     {
@@ -462,7 +281,7 @@ int writer(
 
         fprintf(
             stderr,
-            "writer: unable to close data file\n"
+            "writer: unable to close file\n"
         );
 
         goto cleanup;
@@ -470,150 +289,68 @@ int writer(
 
     file = NULL;
 
-    /*
-     * ==================================================
-     * DATA FILE SUCCESSFULLY WRITTEN
-     *
-     * NOW UPDATE METADATA
-     * ==================================================
-     */
-
-    /*
-     * Check whether this subfile already exists
-     * in metadata.
-     */
-    if (!metadata_has_subfile(
-            metadata,
-            file_id
-        ))
-    {
-        /*
-         * First record in this subfile.
-         *
-         * Example:
-         *
-         * file_id = 1
-         * start   = 1
-         * end     = 1
-         */
-        if (metadata_add_subfile(
-                metadata,
-                file_id,
-                index,
-                index
-            ) != 0)
-        {
-            fprintf(
-                stderr,
-                "writer: unable to add subfile metadata\n"
-            );
-
-            goto cleanup;
-        }
-    }
-    else
-    {
-        /*
-         * Subfile already exists.
-         *
-         * Extend its record range.
-         */
-        if (metadata_update_subfile_end(
-                metadata,
-                file_id,
-                index
-            ) != 0)
-        {
-            fprintf(
-                stderr,
-                "writer: unable to update subfile metadata\n"
-            );
-
-            goto cleanup;
-        }
-    }
-
-    /*
-     * Increment global nextIndex.
-     */
-    if (metadata_set_next_index(
-            metadata,
-            index + 1
-        ) != 0)
-    {
-        fprintf(
-            stderr,
-            "writer: unable to update nextIndex\n"
-        );
-
-        goto cleanup;
-    }
-
-    /*
-     * Save metadata.
-     *
-     * This updates the metadata file.
-     *
-     * It does NOT delete the metadata file.
-     */
-    if (metadata_save(
-            data_loby,
-            metadata
-        ) != 0)
-    {
-        fprintf(
-            stderr,
-            "writer: unable to save metadata\n"
-        );
-
-        goto cleanup;
-    }
+    result = 0;
 
     printf(
         "Writing file: %s\n",
         path
     );
 
-    printf(
-        "Record index: %d\n",
-        index
-    );
-
-    printf(
-        "Subfile ID: %03d\n",
-        file_id
-    );
-
-    /*
-     * Success.
-     */
-    result = 0;
+    /* =====================================================
+     * CENTRALIZED CLEANUP
+     * ===================================================== */
 
 cleanup:
 
+    /*
+     * Close file if it is still open.
+     */
     if (file != NULL)
     {
         fclose(file);
+        file = NULL;
     }
 
-    free(buffer);
-    free(formatted_json);
-    free(key);
+    /*
+     * Free file buffer.
+     */
+    if (buffer != NULL)
+    {
+        free(buffer);
+        buffer = NULL;
+    }
 
-    if (record != NULL)
+    /*
+     * Free formatted JSON.
+     */
+    if (formatted_json != NULL)
+    {
+        free(formatted_json);
+        formatted_json = NULL;
+    }
+
+    /*
+     * Delete entire cJSON tree for record.
+     * Note: record is owned by database after cJSON_AddItemToArray,
+     * so only delete if we haven't added it yet (error path).
+     */
+    if (record != NULL && database == NULL)
     {
         cJSON_Delete(record);
+        record = NULL;
     }
 
+    /*
+     * Delete entire cJSON tree for database.
+     */
     if (database != NULL)
     {
         cJSON_Delete(database);
+        database = NULL;
     }
 
-    if (metadata != NULL)
-    {
-        cJSON_Delete(metadata);
-    }
-
+    /*
+     * Return final result.
+     */
     return result;
 }
