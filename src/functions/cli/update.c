@@ -25,7 +25,7 @@ void cmd_update(char *input)
     }
 
     /*
-     * Get the record key.
+     * Get the record ID/key.
      */
     key = strtok(NULL, " ");
 
@@ -69,7 +69,7 @@ void cmd_update(char *input)
     }
 
     /*
-     * Pass the request to the CRUD layer.
+     * Pass the parsed request to the CRUD layer.
      */
     if (
         updater(

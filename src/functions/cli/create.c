@@ -8,6 +8,16 @@ void cmd_create(char *input)
     char *filename;
     char *data;
 
+    int record_length;
+    int index;
+
+    /*
+     * This variable is used to read the
+     * existing JSON data and determine
+     * the next record index.
+     */
+    cJSON *root;
+
     /*
      * Skip the "create " portion of the command.
      */
@@ -20,7 +30,7 @@ void cmd_create(char *input)
         );
 
         printf(
-            "Example: create users_001.json "
+            "Example: create users.json "
             "{\"name\":\"Sunil\"}\n"
         );
 
@@ -30,8 +40,8 @@ void cmd_create(char *input)
     /*
      * Get the remaining input as JSON.
      *
-     * JSON may contain spaces, so it is not
-     * tokenized further.
+     * JSON may contain spaces, so we don't
+     * tokenize it further.
      */
     data = strtok(NULL, "");
 
@@ -41,25 +51,35 @@ void cmd_create(char *input)
             "Error: create requires JSON data.\n"
         );
 
-        printf(
-            "Example: create users_001.json "
-            "{\"name\":\"Sunil\"}\n"
-        );
-
         return;
     }
 
     /*
-     * Writer now handles:
-     *
-     * - Global record index
-     * - Subfile ID
-     * - Record key generation
-     * - Delete flag
-     * - Subfile creation/update
-     * - Metadata updates
+     * Calculate the length of the entered data.
      */
-    if (writer(filename, data) == 0)
+    record_length = strlen(data);
+
+    /*
+     * Read the existing JSON data to
+     * calculate the next index.
+     */
+    root = reader(filename);
+
+    if (root == NULL)
+    {
+        index = 0;
+    }
+    else
+    {
+        index = cJSON_GetArraySize(root);
+
+        cJSON_Delete(root);
+    }
+
+    /*
+     * Pass the JSON record to writer().
+     */
+    if (writer(filename, data, record_length, index) == 0)
     {
         printf(
             "Data written successfully.\n"

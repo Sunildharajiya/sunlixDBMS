@@ -72,7 +72,7 @@ int metadata_get_next_index(
  * Update the next global record index.
  */
 int metadata_set_next_index(
-    cJSON *metadata,
+    const char *data_lobby,
     int next_index
 );
 
@@ -141,5 +141,6 @@ int metadata_update_subfile_end(
     int file_id,
     int end_index
 );
+
 
 #endif

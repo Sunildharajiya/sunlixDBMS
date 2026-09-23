@@ -4,7 +4,7 @@
 #include <cJSON.h>
 
 #include <utility.h>
-#include <metadataHandler/metadata.h>
+#include <metadata.h>
 
 #define DATA_PATH "data"
 
@@ -167,9 +167,7 @@ int writer(
     /*
      * Get the next global record index.
      */
-    index = metadata_get_next_index(
-      data_loby
-    );
+    index = metadata_get_next_index(metadata);
 
     if (index < 1)
     {
@@ -484,10 +482,10 @@ int writer(
      * Check whether this subfile already exists
      * in metadata.
      */
-    if (metadata_find_subfile(
-    data_loby,
-    index
-) == -1)
+    if (!metadata_has_subfile(
+            metadata,
+            file_id
+        ))
     {
         /*
          * First record in this subfile.
@@ -499,11 +497,11 @@ int writer(
          * end     = 1
          */
         if (metadata_add_subfile(
-    data_loby,
-    file_id,
-    index,
-    index
-) != 0)
+                metadata,
+                file_id,
+                index,
+                index
+            ) != 0)
         {
             fprintf(
                 stderr,
@@ -539,17 +537,17 @@ int writer(
      * Increment global nextIndex.
      */
     if (metadata_set_next_index(
-        metadata,
-        index + 1
-    ) != 0)
-{
-    fprintf(
-        stderr,
-        "writer: unable to update nextIndex\n"
-    );
+            metadata,
+            index + 1
+        ) != 0)
+    {
+        fprintf(
+            stderr,
+            "writer: unable to update nextIndex\n"
+        );
 
-    goto cleanup;
-}
+        goto cleanup;
+    }
 
     /*
      * Save metadata.

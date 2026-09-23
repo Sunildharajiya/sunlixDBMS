@@ -2,7 +2,6 @@
 #include <string.h>
 
 #include "cli.h"
-
 #define MAX_INPUT_SIZE 4096
 #define MAX_ARG_SIZE 64
 
@@ -25,6 +24,9 @@ void cli(void)
         printf("my_cli> ");
         fflush(stdout);
 
+        /*
+         * Read one complete command.
+         */
         if (
             fgets(
                 input,
@@ -36,6 +38,9 @@ void cli(void)
             break;
         }
 
+        /*
+         * Remove the newline.
+         */
         input[
             strcspn(
                 input,
@@ -43,6 +48,9 @@ void cli(void)
             )
         ] = '\0';
 
+        /*
+         * Ignore empty commands.
+         */
         if (input[0] == '\0')
         {
             continue;
@@ -69,16 +77,6 @@ void cli(void)
         }
 
         /*
-         * Handle delete separately because
-         * it operates on a record key.
-         */
-        if (strncmp(input, "delete ", 7) == 0)
-        {
-            cmd_delete(input);
-            continue;
-        }
-
-        /*
          * Tokenize normal commands.
          */
         arg_count = 0;
@@ -95,6 +93,9 @@ void cli(void)
             token = strtok(NULL, " ");
         }
 
+        /*
+         * Make sure at least one argument exists.
+         */
         if (arg_count == 0)
         {
             continue;
