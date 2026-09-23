@@ -71,30 +71,3 @@ release: $(TARGET)
 	rm -f $(OBJECTS)
 	@echo "--- Release build complete ---"
 	@echo "--- Object files removed ---"
-
-WRITER_TEST = writer_test
-
-WRITER_TEST_SOURCES := \
-	tests/writer_test.c \
-	src/functions/crud/writer.c \
-	src/functions/metadataHandler/metadata.c \
-	src/functions/metadataHandler/deleted.c \
-	src/functions/utility/key_genrator.c \
-	packages/cJSON/cJSON.c
-
-WRITER_TEST_OBJECTS := $(WRITER_TEST_SOURCES:.c=.test.o)
-
-.PHONY: writer-test clean-writer-test
-
-writer-test: $(WRITER_TEST)
-	./$(WRITER_TEST)
-
-$(WRITER_TEST): $(WRITER_TEST_OBJECTS)
-	$(CC) $(CFLAGS) $(WRITER_TEST_OBJECTS) -o $(WRITER_TEST)
-
-%.test.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-clean-writer-test:
-	find . -name "*.test.o" -delete
-	rm -f $(WRITER_TEST)

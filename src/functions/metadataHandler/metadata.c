@@ -321,15 +321,17 @@ int metadata_get_next_index(
 }
 
 int metadata_set_next_index(
-    cJSON *metadata,
+    const char *data_lobby,
     int next_index
 )
 {
-    if (metadata == NULL ||
-        next_index < 1)
-    {
+    if (next_index < 1)
         return -1;
-    }
+
+    cJSON *metadata = metadata_load(data_lobby);
+
+    if (metadata == NULL)
+        return -1;
 
     cJSON *value = cJSON_GetObjectItemCaseSensitive(
         metadata,
@@ -338,29 +340,28 @@ int metadata_set_next_index(
 
     if (value == NULL)
     {
-        if (cJSON_AddNumberToObject(
-                metadata,
-                "nextIndex",
-                next_index
-            ) == NULL)
-        {
-            return -1;
-        }
+        cJSON_AddNumberToObject(
+            metadata,
+            "nextIndex",
+            next_index
+        );
     }
     else
     {
-        if (!cJSON_IsNumber(value))
-        {
-            return -1;
-        }
-
         cJSON_SetNumberValue(
             value,
             next_index
         );
     }
 
-    return 0;
+    int result = metadata_save(
+        data_lobby,
+        metadata
+    );
+
+    cJSON_Delete(metadata);
+
+    return result;
 }
 
 int metadata_add_subfile(
